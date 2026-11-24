@@ -14,6 +14,7 @@ from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
 from ..auth import require_tool_scope
+from ..circuit_breaker import circuit_breaker
 from ..config import settings
 from ..security import (
     SandboxError,
@@ -139,6 +140,7 @@ def register_file_tools(mcp: FastMCP) -> None:
     ) -> dict[str, Any]:
         """List directories recursively; omit ignored, sensitive, and symlinked entries."""
         require_tool_scope("list_directory")
+        circuit_breaker.check("list_directory")
         target = resolve_safe_path(path, check_sensitive=False)
         if not target.is_dir():
             raise ValueError(f"Not a directory: {path}")
@@ -152,6 +154,7 @@ def register_file_tools(mcp: FastMCP) -> None:
     def find_files(pattern: str, path: str = ".", max_results: int = 100) -> dict[str, Any]:
         """Find files using a relative glob such as '**/*.py'; results stay inside the workspace."""
         require_tool_scope("find_files")
+        circuit_breaker.check("find_files")
         if PurePosixPath(pattern).is_absolute() or ".." in PurePosixPath(pattern).parts:
             raise ValueError("The glob must be workspace-relative and cannot contain '..'")
         base = resolve_safe_path(path, check_sensitive=False)
@@ -181,6 +184,7 @@ def register_file_tools(mcp: FastMCP) -> None:
     ) -> dict[str, Any]:
         """Search with ripgrep. Matches include workspace-relative paths and line numbers."""
         require_tool_scope("grep_search")
+        circuit_breaker.check("grep_search")
         target = resolve_safe_path(path, check_sensitive=False)
         ripgrep = shutil.which("rg")
         if not ripgrep:
@@ -244,17 +248,28 @@ def register_file_tools(mcp: FastMCP) -> None:
         }
 
     @mcp.tool(annotations=READ_ONLY)
-    def read_file(path: str, start_line: int = 1, end_line: int | None = None) -> dict[str, Any]:
-        """Read UTF-8 text with 1-based line numbers. Pass the returned sha256 to edit_file."""
+    def read_file(
+        path: str,
+        start_line: int = 1,
+        end_line: int | None = None,
+        tail_lines: int | None = None,
+    ) -> dict[str, Any]:
+        """Read UTF-8 lines (or tail_lines from EOF); pass returned sha256 to edit_file."""
         require_tool_scope("read_file")
+        circuit_breaker.check("read_file")
         target = resolve_safe_path(path)
         if not target.is_file():
             raise FileNotFoundError(f"File not found: {path}")
         text = _read_utf8_file(target)
         lines = text.splitlines()
-        start = max(1, start_line)
-        requested_end = end_line if end_line is not None else start + 199
-        end = min(len(lines), requested_end, start + settings.max_read_lines - 1)
+        if tail_lines is not None:
+            count = max(1, min(tail_lines, settings.max_read_lines))
+            start = max(1, len(lines) - count + 1)
+            end = len(lines)
+        else:
+            start = max(1, start_line)
+            requested_end = end_line if end_line is not None else start + 199
+            end = min(len(lines), requested_end, start + settings.max_read_lines - 1)
         if start > len(lines) and lines:
             raise ValueError(f"start_line exceeds the {len(lines)}-line file")
         numbered = [f"{number:>6} | {lines[number - 1]}" for number in range(start, end + 1)]
@@ -279,6 +294,11 @@ def register_file_tools(mcp: FastMCP) -> None:
     ) -> dict[str, Any]:
         """Replace exact text, optionally preview only. Existing files require expected_sha256."""
         require_tool_scope("edit_file")
+        circuit_breaker.check(
+            "edit_file",
+            mutating=not dry_run,
+            fingerprint={"path": path, "old": old_string, "new": new_string},
+        )
         target = resolve_safe_path(path)
         if not target.is_file():
             raise FileNotFoundError(f"File not found: {path}")
@@ -316,6 +336,11 @@ def register_file_tools(mcp: FastMCP) -> None:
     ) -> dict[str, Any]:
         """Create a UTF-8 file or explicitly overwrite one with expected_sha256; returns a diff."""
         require_tool_scope("write_file")
+        circuit_breaker.check(
+            "write_file",
+            mutating=not dry_run,
+            fingerprint={"path": path, "len": len(content)},
+        )
         target = resolve_safe_path(path)
         if target.exists() and not target.is_file():
             raise ValueError("The target is not a regular file")

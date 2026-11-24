@@ -111,3 +111,9 @@ curl https://mcp.example.com/.well-known/oauth-protected-resource/mcp
 - `docs/PLAN.md`：实施边界与验收计划。
 - `docs/SECURITY.md`：部署检查清单和事件响应。
 - `tests/test_mcp_integration.py`：通过官方 MCP 客户端走真实 Streamable HTTP 的工具闭环。
+
+## 桌面端与网页端多客户端适配
+
+- **双传输模式**：默认 `--transport http`（Streamable HTTP + OAuth 2.1，适配 Gemini 网页端 Custom App）；也支持 `--transport stdio`（零端口免鉴权，直接适配 **Gemini CLI**、**Claude Desktop**、**Cursor** 等桌面端）。
+- **自检与配置生成**：运行 `remote-agent-mcp --check` 体检环境，运行 `remote-agent-mcp --print-client-config gemini-cli` 生成客户端配置。
+- **网页端自动放行联动熔断**：如配合浏览器助手 [KenEasy-Gemini-MCP-Auto-Helper](https://github.com/ngiken/KenEasy-Gemini-MCP-Auto-Helper) 使用，建议同时开启服务端熔断 `MCP_MAX_TOOL_CALLS_PER_MINUTE=60`、`MCP_MAX_REPEAT_MUTATIONS=5`（或临时开启 `MCP_READ_ONLY_MODE=true`），详见 [`docs/CLIENTS.md`](docs/CLIENTS.md)。

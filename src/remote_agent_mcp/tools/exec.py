@@ -9,6 +9,7 @@ from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
 from ..auth import require_tool_scope
+from ..circuit_breaker import circuit_breaker
 from ..config import settings
 from ..jobs import job_manager
 from ..processes import spawn_command, terminate_process_tree
@@ -63,6 +64,9 @@ def register_exec_and_git_tools(mcp: FastMCP) -> None:
     ) -> dict[str, Any]:
         """Run a non-interactive shell command. OS isolation is required for untrusted callers."""
         require_tool_scope("run_command")
+        circuit_breaker.check(
+            "run_command", mutating=True, fingerprint={"command": command, "cwd": cwd}
+        )
         try:
             validate_command(command)
         except SandboxError as exc:
@@ -111,6 +115,9 @@ def register_exec_and_git_tools(mcp: FastMCP) -> None:
     def start_bg_job(command: str, cwd: str = ".") -> dict[str, Any]:
         """Start a non-interactive long-running job; poll with the returned job_id."""
         require_tool_scope("start_bg_job")
+        circuit_breaker.check(
+            "start_bg_job", mutating=True, fingerprint={"command": command, "cwd": cwd}
+        )
         try:
             validate_command(command)
         except SandboxError as exc:
@@ -140,12 +147,14 @@ def register_exec_and_git_tools(mcp: FastMCP) -> None:
     def poll_bg_job(job_id: str, offset_bytes: int = 0, max_bytes: int = 8192) -> dict[str, Any]:
         """Poll job status and incremental output. Use next_offset for the next request."""
         require_tool_scope("poll_bg_job")
+        circuit_breaker.check("poll_bg_job")
         return job_manager.poll(job_id, offset_bytes, max_bytes)
 
     @mcp.tool(annotations=KILL)
     def kill_bg_job(job_id: str, signal_name: str = "SIGTERM") -> dict[str, Any]:
         """Terminate a background job and its child process tree."""
         require_tool_scope("kill_bg_job")
+        circuit_breaker.check("kill_bg_job", mutating=True, fingerprint={"job_id": job_id})
         result = job_manager.kill(job_id, signal_name)
         audit_log("kill_bg_job", {"job_id": job_id, "signal": signal_name}, "ok")
         return result
@@ -154,6 +163,7 @@ def register_exec_and_git_tools(mcp: FastMCP) -> None:
     def git_status_diff(include_diff: bool = True, max_diff_chars: int = 8000) -> dict[str, Any]:
         """Return branch/status and both diffs. Untracked files are listed, not dumped."""
         require_tool_scope("git_status_diff")
+        circuit_breaker.check("git_status_diff")
         status = _git_checked(["status", "--short", "--branch"])
         diff = ""
         staged_diff = ""
@@ -185,6 +195,9 @@ def register_exec_and_git_tools(mcp: FastMCP) -> None:
     ) -> dict[str, Any]:
         """Discard tracked edits only. Untracked files are preserved. Disabled by default."""
         require_tool_scope("git_restore")
+        circuit_breaker.check(
+            "git_restore", mutating=True, fingerprint={"paths": paths, "all": restore_all}
+        )
         if not settings.enable_git_restore:
             raise RuntimeError(
                 "git_restore is disabled; set MCP_ENABLE_GIT_RESTORE=true explicitly"

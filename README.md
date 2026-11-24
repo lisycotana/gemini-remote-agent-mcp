@@ -31,7 +31,10 @@ flowchart LR
 cp .env.example .env
 # Set MCP_WORKSPACE_ROOT, and for local testing set MCP_AUTH_ENABLED=false, MCP_SANDBOX_MODE=none
 uv sync
-uv run remote-agent-mcp
+uv run remote-agent-mcp --check
+uv run remote-agent-mcp                      # Streamable HTTP (Gemini Web / remote)
+uv run remote-agent-mcp --transport stdio    # Stdio (Gemini CLI / Claude Desktop / Cursor)
+uv run remote-agent-mcp --print-client-config gemini-cli
 ```
 
 ### Docker (Isolated Non-Root Container)
@@ -58,4 +61,5 @@ npx @modelcontextprotocol/inspector
 ## Documentation
 
 - [`docs/SECURITY.md`](docs/SECURITY.md) — Production deployment checklist and incident response.
+- [`docs/CLIENTS.md`](docs/CLIENTS.md) — Setup for **Gemini Web** (with [KenEasy-Gemini-MCP-Auto-Helper](https://github.com/ngiken/KenEasy-Gemini-MCP-Auto-Helper) + server circuit breaker), **Gemini CLI**, **Claude Desktop**, and **Cursor**.
 - [`docs/PLAN.md`](docs/PLAN.md) — Architecture boundaries and acceptance criteria.

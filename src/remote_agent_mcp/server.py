@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import argparse
+import json
 import logging
+import sys
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -14,6 +17,7 @@ from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from . import oauth_provider
 from .auth import JWTValidator, OAuthResourceMiddleware
+from .cli_helpers import generate_client_config, run_preflight_check
 from .config import settings
 from .tools.exec import register_exec_and_git_tools
 from .tools.files import register_file_tools
@@ -108,7 +112,44 @@ def create_asgi_app(*, validator: JWTValidator | None = None) -> ASGIApp:
     return OAuthResourceMiddleware(application, validator=validator)
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(
+        prog="remote-agent-mcp",
+        description="Workspace-scoped MCP server for Gemini Web, Gemini CLI, and desktop clients.",
+    )
+    parser.add_argument(
+        "--transport",
+        choices=["http", "stdio"],
+        default=settings.transport,
+        help="Transport mode: 'http' (Streamable HTTP for web/remote) or 'stdio' (desktop/CLI).",
+    )
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="Run preflight security and environment checks and exit.",
+    )
+    parser.add_argument(
+        "--print-client-config",
+        choices=["gemini-cli", "gemini-cli-http", "claude-desktop", "cursor", "gemini-web"],
+        help="Print ready-to-paste client configuration JSON and exit.",
+    )
+    args = parser.parse_args(argv)
+    settings.transport = args.transport
+
+    if args.check:
+        report = run_preflight_check()
+        print(json.dumps(report, indent=2, ensure_ascii=False))
+        sys.exit(0 if report["ok"] else 1)
+
+    if args.print_client_config:
+        print(generate_client_config(args.print_client_config))
+        return
+
+    if settings.transport == "stdio":
+        settings.auth_enabled = False
+        create_mcp().run(transport="stdio")
+        return
+
     uvicorn.run(
         create_asgi_app(),
         host=settings.host,

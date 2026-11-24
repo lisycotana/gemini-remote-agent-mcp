@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     )
 
     workspace_root: Path = Field(default_factory=Path.cwd)
+    transport: Literal["http", "stdio"] = "http"
     host: str = "127.0.0.1"
     port: int = 8000
     stateless_http: bool = True
@@ -97,6 +98,9 @@ class Settings(BaseSettings):
         ]
     )
     rotate_refresh_tokens: bool = False
+    read_only_mode: bool = False
+    max_tool_calls_per_minute: int = Field(default=0, ge=0, le=600)
+    max_repeat_mutations: int = Field(default=0, ge=0, le=50)
 
     @property
     def resolved_workspace(self) -> Path:
