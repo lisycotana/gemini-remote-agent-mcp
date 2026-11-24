@@ -23,12 +23,12 @@ from .tools.exec import register_exec_and_git_tools
 from .tools.files import register_file_tools
 
 
-def create_mcp() -> FastMCP:
+def create_mcp(*, read_only: bool = False, streamable_http_path: str = "/mcp") -> FastMCP:
     mcp = FastMCP(
-        name="gemini-remote-agent-mcp",
+        name="gemini-remote-agent-mcp-readonly" if read_only else "gemini-remote-agent-mcp",
         host=settings.host,
         port=settings.port,
-        streamable_http_path="/mcp",
+        streamable_http_path=streamable_http_path,
         stateless_http=settings.stateless_http,
         json_response=settings.json_response,
         retry_interval=settings.sse_retry_interval,
@@ -47,8 +47,9 @@ def create_mcp() -> FastMCP:
             "git_restore is destructive, may be disabled, and requires explicit confirmation."
         ),
     )
-    register_file_tools(mcp)
-    register_exec_and_git_tools(mcp)
+    effective_ro = read_only or settings.read_only_mode
+    register_file_tools(mcp, read_only=effective_ro)
+    register_exec_and_git_tools(mcp, read_only=effective_ro)
     return mcp
 
 
@@ -68,11 +69,13 @@ def create_asgi_app(*, validator: JWTValidator | None = None) -> ASGIApp:
     if validator is None and settings.local_oauth_provider:
         validator = JWTValidator(public_key=oauth_provider.signing_key().public_key())
     mcp = create_mcp()
+    mcp_ro = create_mcp(read_only=True, streamable_http_path="/mcp/readonly")
     mcp_app = mcp.streamable_http_app()
+    mcp_ro_app = mcp_ro.streamable_http_app()
 
     @asynccontextmanager
     async def lifespan(_: Starlette) -> AsyncIterator[None]:
-        async with mcp.session_manager.run():
+        async with mcp.session_manager.run(), mcp_ro.session_manager.run():
             yield
 
     application = Starlette(
@@ -108,6 +111,7 @@ def create_asgi_app(*, validator: JWTValidator | None = None) -> ASGIApp:
                 Route("/oauth/register", oauth_provider.register, methods=["POST"]),
             ]
         )
+    application.router.routes.extend(mcp_ro_app.routes)
     application.mount("/", mcp_app)
     return OAuthResourceMiddleware(application, validator=validator)
 

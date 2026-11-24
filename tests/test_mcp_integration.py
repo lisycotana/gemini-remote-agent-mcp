@@ -59,7 +59,7 @@ async def test_streamable_http_mcp_tool_round_trip() -> None:
         ):
             await session.initialize()
             tools = await session.list_tools()
-            assert len(tools.tools) == 12
+            assert len(tools.tools) == 15
             created = unwrap(
                 await session.call_tool("write_file", {"path": "hello.txt", "content": "hello\n"})
             )

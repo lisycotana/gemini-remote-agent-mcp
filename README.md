@@ -2,7 +2,7 @@
 
 # Gemini Remote Agent MCP
 
-A workspace-scoped remote development MCP server built for **Gemini Custom Apps / MCP Connectors**. It exposes 12 standard tools directly inside a target workspace over stateless Streamable HTTP, secured with OAuth 2.1 + PKCE, path sandboxing, secret redaction, and JSONL audit logging.
+A workspace-scoped remote development MCP server built for **Gemini Custom Apps / MCP Connectors**. It exposes 15 workspace tools (plus a dedicated `/mcp/readonly` endpoint) directly inside a target workspace over stateless Streamable HTTP, secured with OAuth 2.1 + PKCE, path sandboxing, secret redaction, and JSONL audit logging.
 
 ```mermaid
 flowchart LR
@@ -62,4 +62,5 @@ npx @modelcontextprotocol/inspector
 
 - [`docs/SECURITY.md`](docs/SECURITY.md) — Production deployment checklist and incident response.
 - [`docs/CLIENTS.md`](docs/CLIENTS.md) — Setup for **Gemini Web** (with [KenEasy-Gemini-MCP-Auto-Helper](https://github.com/ngiken/KenEasy-Gemini-MCP-Auto-Helper) + server circuit breaker), **Gemini CLI**, **Claude Desktop**, and **Cursor**.
+- [`extension/README.md`](extension/README.md) — Built-in Chrome/Edge MV3 auto-approval & keepalive companion extension (with bug-safe *Allow Once first* strategy and 6-layer circuit breaker).
 - [`docs/PLAN.md`](docs/PLAN.md) — Architecture boundaries and acceptance criteria.

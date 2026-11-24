@@ -54,7 +54,37 @@ def _git_checked(arguments: list[str]) -> str:
     return redact_secrets(completed.stdout)
 
 
-def register_exec_and_git_tools(mcp: FastMCP) -> None:
+def register_exec_and_git_tools(mcp: FastMCP, *, read_only: bool = False) -> None:
+    @mcp.tool(annotations=READ_ONLY)
+    def git_status_diff(include_diff: bool = True, max_diff_chars: int = 8000) -> dict[str, Any]:
+        """Return branch/status and both diffs. Untracked files are listed, not dumped."""
+        require_tool_scope("git_status_diff")
+        circuit_breaker.check("git_status_diff")
+        status = _git_checked(["status", "--short", "--branch"])
+        diff = ""
+        staged_diff = ""
+        truncated = False
+        if include_diff:
+            diff, tracked_truncated, _ = truncate_head_tail(
+                _git_checked(["diff", "--no-ext-diff", "--"]),
+                max(500, min(max_diff_chars, 20000)),
+            )
+            staged_diff, staged_truncated, _ = truncate_head_tail(
+                _git_checked(["diff", "--cached", "--no-ext-diff", "--"]),
+                max(500, min(max_diff_chars, 20000)),
+            )
+            truncated = tracked_truncated or staged_truncated
+        audit_log("git_status_diff", {"include_diff": include_diff}, "ok")
+        return {
+            "status": status,
+            "diff": diff,
+            "staged_diff": staged_diff,
+            "diff_truncated": truncated,
+        }
+
+    if read_only:
+        return
+
     @mcp.tool(annotations=EXECUTE)
     def run_command(
         command: str,
@@ -150,6 +180,15 @@ def register_exec_and_git_tools(mcp: FastMCP) -> None:
         circuit_breaker.check("poll_bg_job")
         return job_manager.poll(job_id, offset_bytes, max_bytes)
 
+    @mcp.tool(annotations=READ_ONLY)
+    def list_bg_jobs() -> dict[str, Any]:
+        """List active and recently exited background jobs with status and PID."""
+        require_tool_scope("list_bg_jobs")
+        circuit_breaker.check("list_bg_jobs")
+        jobs = job_manager.list_jobs()
+        audit_log("list_bg_jobs", {"count": len(jobs)}, "ok")
+        return {"jobs": jobs, "count": len(jobs)}
+
     @mcp.tool(annotations=KILL)
     def kill_bg_job(job_id: str, signal_name: str = "SIGTERM") -> dict[str, Any]:
         """Terminate a background job and its child process tree."""
@@ -158,33 +197,6 @@ def register_exec_and_git_tools(mcp: FastMCP) -> None:
         result = job_manager.kill(job_id, signal_name)
         audit_log("kill_bg_job", {"job_id": job_id, "signal": signal_name}, "ok")
         return result
-
-    @mcp.tool(annotations=READ_ONLY)
-    def git_status_diff(include_diff: bool = True, max_diff_chars: int = 8000) -> dict[str, Any]:
-        """Return branch/status and both diffs. Untracked files are listed, not dumped."""
-        require_tool_scope("git_status_diff")
-        circuit_breaker.check("git_status_diff")
-        status = _git_checked(["status", "--short", "--branch"])
-        diff = ""
-        staged_diff = ""
-        truncated = False
-        if include_diff:
-            diff, tracked_truncated, _ = truncate_head_tail(
-                _git_checked(["diff", "--no-ext-diff", "--"]),
-                max(500, min(max_diff_chars, 20000)),
-            )
-            staged_diff, staged_truncated, _ = truncate_head_tail(
-                _git_checked(["diff", "--cached", "--no-ext-diff", "--"]),
-                max(500, min(max_diff_chars, 20000)),
-            )
-            truncated = tracked_truncated or staged_truncated
-        audit_log("git_status_diff", {"include_diff": include_diff}, "ok")
-        return {
-            "status": status,
-            "diff": diff,
-            "staged_diff": staged_diff,
-            "diff_truncated": truncated,
-        }
 
     @mcp.tool(annotations=KILL)
     def git_restore(

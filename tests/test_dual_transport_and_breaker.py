@@ -61,3 +61,39 @@ def test_preflight_check_and_client_configs() -> None:
     for client in ("gemini-cli", "gemini-cli-http", "claude-desktop", "cursor", "gemini-web"):
         parsed = json.loads(generate_client_config(client))
         assert isinstance(parsed, dict)
+
+
+def test_new_remote_mcp_tools_and_readonly_app() -> None:
+    from remote_agent_mcp.server import create_mcp
+
+    (settings.resolved_workspace / "a.txt").write_text("alpha\n", encoding="utf-8")
+    (settings.resolved_workspace / "b.txt").write_text("beta\n", encoding="utf-8")
+
+    full_mcp = create_mcp(read_only=False)
+    tools = full_mcp._tool_manager._tools
+    assert "read_multiple_files" in tools
+    assert "workspace_info" in tools
+    assert "list_bg_jobs" in tools
+
+    batch = tools["read_multiple_files"].fn(paths=["a.txt", "b.txt", "missing.txt"])
+    assert batch["count"] == 3
+    assert "alpha" in batch["files"][0]["content"]
+    assert "error" in batch["files"][2]
+
+    info = tools["workspace_info"].fn()
+    assert info["read_only_mode"] is False
+    assert info["shell"] in {"cmd/powershell", "bash"}
+
+    jobs_res = tools["list_bg_jobs"].fn()
+    assert isinstance(jobs_res["jobs"], list)
+
+    ro_mcp = create_mcp(read_only=True, streamable_http_path="/mcp/readonly")
+    ro_tools = ro_mcp._tool_manager._tools
+    assert "read_file" in ro_tools
+    assert "read_multiple_files" in ro_tools
+    assert "workspace_info" in ro_tools
+    assert "git_status_diff" in ro_tools
+    assert "write_file" not in ro_tools
+    assert "edit_file" not in ro_tools
+    assert "run_command" not in ro_tools
+    assert "git_restore" not in ro_tools

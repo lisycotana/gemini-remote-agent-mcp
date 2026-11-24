@@ -1,0 +1,33 @@
+{
+  "manifest_version": 3,
+  "name": "Gemini Remote MCP Auto-Approval Helper",
+  "version": "0.1.0",
+  "description": "Companion MV3 extension for gemini-remote-agent-mcp: safe auto-approval on Gemini Web with 6-layer circuit breaker, hold-to-drag HUD, keepalive, and MCP /healthz probe.",
+  "permissions": [
+    "storage",
+    "alarms",
+    "tabs",
+    "notifications"
+  ],
+  "host_permissions": [
+    "https://gemini.google.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://gemini.google.com/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_title": "Gemini MCP Auto Helper",
+    "default_popup": "popup.html"
+  }
+}

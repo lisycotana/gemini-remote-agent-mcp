@@ -117,3 +117,5 @@ curl https://mcp.example.com/.well-known/oauth-protected-resource/mcp
 - **双传输模式**：默认 `--transport http`（Streamable HTTP + OAuth 2.1，适配 Gemini 网页端 Custom App）；也支持 `--transport stdio`（零端口免鉴权，直接适配 **Gemini CLI**、**Claude Desktop**、**Cursor** 等桌面端）。
 - **自检与配置生成**：运行 `remote-agent-mcp --check` 体检环境，运行 `remote-agent-mcp --print-client-config gemini-cli` 生成客户端配置。
 - **网页端自动放行联动熔断**：如配合浏览器助手 [KenEasy-Gemini-MCP-Auto-Helper](https://github.com/ngiken/KenEasy-Gemini-MCP-Auto-Helper) 使用，建议同时开启服务端熔断 `MCP_MAX_TOOL_CALLS_PER_MINUTE=60`、`MCP_MAX_REPEAT_MUTATIONS=5`（或临时开启 `MCP_READ_ONLY_MODE=true`），详见 [`docs/CLIENTS.md`](docs/CLIENTS.md)。
+- **内置浏览器自动放行扩展（`extension/`）**：零依赖 Chrome/Edge MV3 扩展，支持 4 语识别、Shadow DOM 穿透、6 层防刷熔断、可拖拽 HUD、防休眠保活及 `/healthz` 探活；默认采用「允许一次优先」策略以规避 Gemini 网页端点击「始终允许」导致设置重置的 Bug，详见 [`extension/README.md`](extension/README.md)。
+- **高价值远程工具与只读端点**：新增批量读文件 `read_multiple_files`、环境诊断 `workspace_info`、后台任务列表 `list_bg_jobs`，以及专用只读端点 `/mcp/readonly`。

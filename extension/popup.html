@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Gemini MCP Auto Helper</title>
+<style>
+  body { width: 300px; margin: 0; padding: 14px; font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #f8fafc; }
+  h2 { margin: 0 0 10px; font-size: 15px; }
+  .row { display: flex; justify-content: space-between; align-items: center; margin: 8px 0; gap: 8px; }
+  select, input[type="number"], input[type="text"] { background: #1e293b; color: #f8fafc; border: 1px solid #334155; border-radius: 6px; padding: 4px 6px; font-size: 12px; }
+  input[type="text"] { width: 100%; box-sizing: border-box; margin-top: 4px; }
+  button { width: 100%; padding: 8px; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; margin-top: 8px; }
+  .primary { background: #2563eb; color: #fff; }
+  .danger { background: #dc2626; color: #fff; }
+  .muted { color: #94a3b8; font-size: 11.5px; margin-top: 6px; }
+</style>
+</head>
+<body>
+  <h2>Gemini MCP Auto Helper</h2>
+  <div class="row"><label>Enable Auto-Approval</label><input id="enabled" type="checkbox"></div>
+  <div class="row">
+    <label>Click Strategy</label>
+    <select id="strategy">
+      <option value="allow_once_first">Allow Once first (safe)</option>
+      <option value="always_allow_first">Always Allow first</option>
+    </select>
+  </div>
+  <div class="row"><label>Auto-click Continue</label><input id="autoContinue" type="checkbox"></div>
+  <div class="row"><label>Show Floating HUD</label><input id="showHud" type="checkbox"></div>
+  <div class="row"><label>Per-Task Cap</label><input id="perTaskLimit" type="number" min="1" max="100" style="width:64px"></div>
+  <div class="row"><label>Daily Cap</label><input id="dailyLimit" type="number" min="1" max="1000" style="width:64px"></div>
+  <div style="margin-top:8px;">
+    <label>MCP Health URL</label>
+    <input id="healthUrl" type="text" placeholder="http://127.0.0.1:8000/healthz">
+  </div>
+  <button id="checkHealth" class="primary">Check MCP /healthz</button>
+  <button id="killSwitch" class="danger">Emergency Stop</button>
+  <div id="healthResult" class="muted">Tip: "Allow Once first" avoids Gemini Web's Always-Allow reset bug.</div>
+  <script src="popup.js"></script>
+</body>
+</html>

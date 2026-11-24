@@ -3,9 +3,11 @@ from __future__ import annotations
 import contextlib
 import difflib
 import os
+import platform
 import shutil
 import stat
 import subprocess
+import sys
 import tempfile
 from pathlib import Path, PurePosixPath
 from typing import Any
@@ -133,7 +135,7 @@ def _walk_entries(base: Path, max_depth: int, limit: int) -> tuple[list[str], bo
     return entries, truncated
 
 
-def register_file_tools(mcp: FastMCP) -> None:
+def register_file_tools(mcp: FastMCP, *, read_only: bool = False) -> None:
     @mcp.tool(annotations=READ_ONLY)
     def list_directory(
         path: str = ".", max_depth: int = 2, max_entries: int = 300
@@ -282,6 +284,62 @@ def register_file_tools(mcp: FastMCP) -> None:
             "sha256": file_sha256(target),
             "content": redact_secrets("\n".join(numbered)),
         }
+
+    @mcp.tool(annotations=READ_ONLY)
+    def read_multiple_files(paths: list[str], max_lines_per_file: int = 150) -> dict[str, Any]:
+        """Batch-read up to 10 workspace UTF-8 files in one call to save round-trips."""
+        require_tool_scope("read_multiple_files")
+        circuit_breaker.check("read_multiple_files")
+        if not paths or len(paths) > 10:
+            raise ValueError("Provide between 1 and 10 file paths")
+        line_cap = max(1, min(max_lines_per_file, settings.max_read_lines))
+        results: list[dict[str, Any]] = []
+        for rel in paths:
+            try:
+                target = resolve_safe_path(rel)
+                if not target.is_file():
+                    results.append({"path": rel, "error": f"File not found: {rel}"})
+                    continue
+                text = _read_utf8_file(target)
+                lines = text.splitlines()
+                end = min(len(lines), line_cap)
+                numbered = [f"{n:>6} | {lines[n - 1]}" for n in range(1, end + 1)]
+                results.append(
+                    {
+                        "path": rel,
+                        "total_lines": len(lines),
+                        "range": [1, end],
+                        "truncated": end < len(lines),
+                        "sha256": file_sha256(target),
+                        "content": redact_secrets("\n".join(numbered)),
+                    }
+                )
+            except (SandboxError, ValueError, OSError) as exc:
+                results.append({"path": rel, "error": str(exc)})
+        audit_log("read_multiple_files", {"count": len(paths)}, "ok")
+        return {"files": results, "count": len(results)}
+
+    @mcp.tool(annotations=READ_ONLY)
+    def workspace_info() -> dict[str, Any]:
+        """Return workspace path, OS/shell environment, and active safety flags."""
+        require_tool_scope("workspace_info")
+        circuit_breaker.check("workspace_info")
+        audit_log("workspace_info", {}, "ok")
+        return {
+            "workspace_root": str(settings.resolved_workspace),
+            "os": platform.system(),
+            "platform": platform.platform(),
+            "shell": "cmd/powershell" if os.name == "nt" else "bash",
+            "python_version": sys.version.split()[0],
+            "ripgrep_available": shutil.which("rg") is not None,
+            "git_available": shutil.which("git") is not None,
+            "sandbox_mode": settings.sandbox_mode,
+            "read_only_mode": settings.read_only_mode or read_only,
+            "allowed_commands_enabled": bool(settings.allowed_commands),
+        }
+
+    if read_only:
+        return
 
     @mcp.tool(annotations=EDIT)
     def edit_file(

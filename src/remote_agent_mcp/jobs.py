@@ -11,7 +11,7 @@ from typing import Any
 
 from .config import settings
 from .processes import spawn_command, terminate_process_tree
-from .security import redact_secrets, truncate_head_tail
+from .security import redact_secrets, redacted_command_for_audit, truncate_head_tail
 
 
 @dataclass
@@ -107,6 +107,26 @@ class JobManager:
             "next_offset": next_offset,
             "offset_reset": reset_offset,
         }
+
+    def list_jobs(self) -> list[dict[str, Any]]:
+        with self._lock:
+            self._prune()
+            items: list[dict[str, Any]] = []
+            now = time.time()
+            for job in self._jobs.values():
+                return_code = job.process.poll()
+                items.append(
+                    {
+                        "job_id": job.job_id,
+                        "status": "running" if return_code is None else "exited",
+                        "exit_code": return_code,
+                        "pid": job.process.pid,
+                        "cwd": job.cwd,
+                        "command": redacted_command_for_audit(job.command)[:200],
+                        "elapsed_seconds": round(now - job.started_at, 2),
+                    }
+                )
+            return items
 
     def kill(self, job_id: str, signal_name: str = "SIGTERM") -> dict[str, Any]:
         if signal_name not in {"SIGTERM", "SIGKILL"}:
