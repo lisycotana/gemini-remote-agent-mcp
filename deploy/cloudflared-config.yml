@@ -1,0 +1,8 @@
+# Use only with a locally managed tunnel. Replace both placeholders.
+tunnel: YOUR_TUNNEL_UUID
+credentials-file: /etc/cloudflared/YOUR_TUNNEL_UUID.json
+
+ingress:
+  - hostname: mcp.example.com
+    service: http://127.0.0.1:8000
+  - service: http_status:404

@@ -1,0 +1,29 @@
+[Unit]
+Description=Gemini Remote Agent MCP
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=mcp-runner
+Group=mcp-runner
+WorkingDirectory=/opt/remote-agent-mcp
+EnvironmentFile=/opt/remote-agent-mcp/.env
+ExecStart=/opt/remote-agent-mcp/.venv/bin/remote-agent-mcp
+Restart=on-failure
+RestartSec=3
+
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+ReadWritePaths=/srv/workspace/my-project /var/log/remote-agent-mcp /var/lib/remote-agent-mcp
+
+[Install]
+WantedBy=multi-user.target
